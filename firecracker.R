@@ -1,4 +1,4 @@
-# setwd("C:\\Users\\aaronf\\Documents\\classes\\data_science\\various")
+# setwd("C:\\Users\\aaronf\\Documents\\classes\\data_science\\various\\firecracker")
 library(stringr)
 library(ggplot2)
 library(gridExtra)
