@@ -1,27 +1,4 @@
----
-title: "Firecracker 5/10K 2015 Analysis"
-output: 
-  html_document:
-    keep_md: true
----
-### Intro
-Every July 4, the firecracker 5k/10k races occur in Santa Cruz. This project
-explores data from the 2014 race.  
 
-### Setup
-First, load some libraries...
-```{r}
-library(stringr)
-library(ggplot2)
-library(gridExtra)
-library(RCurl)
-library(XML)
-```
-
-### Function Definitions
-A funtion to convert HH:MM::SS to seconds:
-
-```{r}
 to_seconds_recur <- function(x, val) {
   if (length(x) == 0)
     return(val)
@@ -33,11 +10,18 @@ to_seconds_recur <- function(x, val) {
 to_seconds <- function(x) {
   return(to_seconds_recur(as.integer(x), 0))
 }
-```
 
-Read data from an xmlValue
-
-```{r}
+# get_data <- function(filename) {
+#   data <- read.fwf(
+#     filename,
+#     widths = c(5, 10, 27, 3, 1, 17, 8, 5),
+#     stringsAsFactors = FALSE
+#   )
+# 
+#   data <- clean_data(data)
+#   return(data)
+# }
+# 
 read_raw <- function(text) {
   con <- textConnection(text)
   data <- readLines(con)
@@ -45,11 +29,7 @@ read_raw <- function(text) {
   
   return(data)
 }
-```
 
-Discard header data up to the line that contains "===="
-
-```{r}
 discard_header <- function(data) {
   index <- 1 # index of the _next_ line to be read
   for (line in data) {
@@ -61,19 +41,13 @@ discard_header <- function(data) {
 
   return(data[index:length(data)])
 }
-```
 
-Drop any blank lines.
-```{r}
 discard_blanks <- function(data) {
   blanks <- grepl("^$", data)
 
   return(data[!blanks])
 }
-```
 
-Double-check the data - all this parsing is fragile, so try to fail early.
-```{r}
 check_raw_data <- function(sig, data) {
   if (!any(grepl(pattern = sig, x = data, fixed=TRUE))) {
     print(sprintf("Failed to find signature string '%s'\n", sig))
@@ -81,11 +55,17 @@ check_raw_data <- function(sig, data) {
   }
   return(TRUE)
 }
-```
 
-Load data from the given url.
-```{r}
-get_data_from_url <- function(url) {
+get_raw_data_from_url <- function(url) {
+  html <- htmlParse(url)
+  pres <- getNodeSet(html, "//pre")
+
+  return(pres)
+}
+
+get_data_from_url <- function(year) {
+  url <- paste("http://www.santacruzfirecracker10k.org/race-results-", year,
+  sep="")
   html <- htmlParse(url)
   pres <- getNodeSet(html, "//pre")
   data5k <- xmlValue(pres[[1]])
@@ -95,16 +75,16 @@ get_data_from_url <- function(url) {
   data10k <- read_raw(data10k)
 
   # Check the data
-  checked5k <- check_raw_data("5-K Results", data5k)
-  checked10k <- check_raw_data("10-K Results", data10k)
-
-  if (!checked5k)
-    print("didn't manage to read good 5k data, giving up.")
-  if (!checked10k)
-    print("didn't manage to read good 10k data, giving up.")
-
-  if (!checked5k || !checked10k)
-    return(c(NA, NA))
+#  checked5k <- check_raw_data("5-K Results", data5k)
+#  checked10k <- check_raw_data("10-K Results", data10k)
+#
+#  if (!checked5k)
+#    print("didn't manage to read good 5k data, giving up.")
+#  if (!checked10k)
+#    print("didn't manage to read good 10k data, giving up.")
+#
+#  if (!checked5k || !checked10k)
+#    return(c(NA, NA))
 
   # discard up to and including the header line ("====...")
   data5k <- discard_header(data5k)
@@ -114,19 +94,16 @@ get_data_from_url <- function(url) {
   data5k <- discard_blanks(data5k)
   data10k <- discard_blanks(data10k)
 
-  data5k <- parseit(data5k)
-  data10k <- parseit(data10k)
+  data5k <- parseit(data5k, year)
+  data10k <- parseit(data10k, year)
 
   data5k <- clean_data(data5k)
   data10k <- clean_data(data10k)
 
   return(list(data5k, data10k))
 }
-```
 
-Label the data.
-```{r}
-parseit <- function(data) {
+parseit <- function(data, year) {
   len <- length(data)
   the_names <- 
     c("Rank", "Age.Rank", "Name", "Age", "Gender", "City", "Time", "Pace")
@@ -145,7 +122,7 @@ parseit <- function(data) {
 
   for (i in 1:len) {
     line <- data[i]
-    newrow <- clean_line(line)
+    newrow <- clean_line(line, year)
     newdata[i, ] <- newrow
   }
 
@@ -155,14 +132,27 @@ parseit <- function(data) {
 
   return(newdata)
 }
-```
 
-Load the data from fixed field positions into variables.
-```{r}
-clean_line <- function(line) {
+# sample of 2015 data:
+#0        1         2         3         4         5         6         7
+#1234567890123456789012345678901234567890123456789012345678901234567890123456
+#    1   1/12   JAY THOMSON         35 M SANTA CRUZ        16:01  5:10
+#  325  10/10   MARIA CAVA          23 F PARK CITY       1:06:16 21:20 
+
+# sample of 2014 data:
+#0        1         2         3         4         5         6         7
+#1234567890123456789012345678901234567890123456789012345678901234567890123456
+#    1   1/8    NICK SHERRELL              21 M BEN LOMOND        16:48  5:25 
+#  276  18/18   CINDY DUMESNY              46 F                 1:11:29 23:01 
+clean_line <- function(line, year) {
   fields <- c(as.character())
-  starts <- c(1,  6, 16, 43, 46, 47, 64, 72)
-  stops <-   c(5, 15, 42, 45, 46, 63, 71, 76)
+  if (year == 2015) {
+    starts <- c(1,  6, 16, 36, 39, 40, 57, 64)
+    stops <-  c(5, 15, 35, 38, 39, 56, 63, 74)
+  } else {
+    starts <- c(1,  6, 16, 43, 46, 47, 64, 72)
+    stops <-   c(5, 15, 42, 45, 46, 63, 71, 76)
+  } 
   
   for (i in 1:length(starts)) {
     start <- starts[i]
@@ -175,10 +165,7 @@ clean_line <- function(line) {
 
   return(fields)
 }
-```
 
-More data tidying.
-```{r}
 clean_data <- function(data) {
   the_names <-
     c("Rank", "Age.Rank", "Name", "Age", "Gender", "City", "Time", "Pace")
@@ -199,52 +186,4 @@ clean_data <- function(data) {
   data$Time <- time2
   return(data)
 }
-```
-
-### Reading the data from the Intrawebs
-Load data from the url.
-```{r}
-the_data <-
-  get_data_from_url("http://www.santacruzfirecracker10k.org/race-results-2015")
-```
-Grab 5k and 10k data from the XML tree.
-```{r}
-data5k <- the_data[[1]]
-data10k <- the_data[[2]]
-```
-
-### Highlighting some special points
-Extract some specific points, by runner name.
-```{r}
-AF <- subset(data10k, Name == "AARON FERRUCCI")
-IF <- subset(data5k, Name == "IAN FERRUCCI")
-# LM <- subset(data5k, Name == "LORI MATSUMOTO")
-```
-
-### Plotting
-```{r}
-plot5k <-
-  qplot(Age, Time, data=data5k, main="5k", ylim=c(0, NA), col=Gender) +
-    geom_point() +
-    geom_smooth() +
-    # geom_point(data=LM, color="black") +
-    # geom_text(data=LM, label="lm", color="black", vjust=1) +
-    geom_point(data=IF, color="black") +
-    geom_text(data=IF, label="if", color="black", vjust=1)
-plot10k <-
-  qplot(Age, Time, data=data10k, main="10k", ylim=c(0, NA), col=Gender) +
-    geom_point() +
-    geom_smooth() +
-    geom_point(data=AF, color="black") +
-    geom_text(data=AF, label="af", color="black", vjust=1)
-# pdf("firecracker2014.pdf", width=4, height=5)
-grid.arrange(plot5k, plot10k, nrow=2, main="2014 Firecracker")
-# dev.off()
-```
-
-### Appendix
-It's a good idea to record the session info, for reproducibility.
-```{r}
-sessionInfo()
-```
 
