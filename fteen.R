@@ -11,9 +11,12 @@ the_data <- get_data_from_url(year)
 data5k <- the_data[[1]]
 data10k <- the_data[[2]]
 
-IF <- subset(data10k, Name == "IAN FERRUCCI")
-EW <- subset(data10k, Name == "EVAN WOLCOTT")
-WL <- subset(data10k, Name == "WILLIAM LENINGTON")
+friends <- subset(data10k,
+  Name == "IAN FERRUCCI" |
+  Name == "EVAN WOLCOTT" |
+  Name == "WILLIAM LENINGTON"
+)
+friends$Name = factor(friends$Name)
 
 data10k <- subset(data10k, Age < 18.5)
 
@@ -39,16 +42,11 @@ plot10k <-
     fill = 'gray80'
   ) +
   geom_point() +
-  stat_smooth(method = "lm", formula = y ~ x) +
+  stat_smooth(formula = y ~ x) +
   xlim(xmin, xmax) +
   ylim(0, NA) +
   scale_x_continuous(breaks = 9:18) +
-  geom_point(data=WL, aes(x = Age, y = Time), color="black") +
-  geom_text(data=WL, aes(x = Age, y = Time), label="wl", color="black", vjust=1) +
-  geom_point(data=EW, aes(x = Age, y = Time), color="black") +
-  geom_text(data=EW, aes(x = Age, y = Time), label="ew", color="black", vjust=1, hjust=0) +
-  geom_point(data=IF, aes(x = Age, y = Time), color="black") +
-  geom_text(data=IF, aes(x = Age, y = Time), label="if", color="black", hjust=-0.2, vjust=0.5)
+  geom_point(data=friends,aes(x = Age, y = Time, shape=Name), color = "black")
 
 plot10ka <- 
   ggplot(data10k, aes(x = Age, y = Time, color = Gender)) +
@@ -62,16 +60,11 @@ plot10ka <-
     fill = 'gray80'
   ) +
   geom_point() +
-  stat_smooth(method = "lm", formula = y ~ x) +
+  stat_smooth(formula = y ~ x) +
   xlim(xmin, xmax) +
   ylim(0, NA) +
   scale_x_continuous(breaks = 9:18) +
-  geom_point(data=WL, aes(x = Age, y = Time), color="black") +
-  geom_text(data=WL, aes(x = Age, y = Time), label="wl", color="black", vjust=1) +
-  geom_point(data=EW, aes(x = Age, y = Time), color="black") +
-  geom_text(data=EW, aes(x = Age, y = Time), label="ew", color="black", vjust=1, hjust=0) +
-  geom_point(data=IF, aes(x = Age, y = Time), color="black") +
-  geom_text(data=IF, aes(x = Age, y = Time), label="if", color="black", hjust=-0.2, vjust=0.5)
+  geom_point(data=friends,aes(x = Age, y = Time, shape=Name), color = "black")
 
 # pdf("firecracker2015.pdf", width=6, height=4)
 grid.arrange(plot10k, plot10ka, nrow=2, main=paste(year, "Firecracker"))
